@@ -6,10 +6,19 @@
 #include <unistd.h>
 
 #define clean_and_return \
-    {                  \
-        fclose(file);  \
-        return (0);    \
+    {                    \
+        fclose(file);    \
+        return (0);      \
     }
+
+#define read_char(next, file) \
+    if (!fread(next, 1, 1, file)) clean_and_return
+#define read_uint16_t(next, file) \
+    if (!fread(next, 2, 1, file)) clean_and_return
+#define read_uint32_t(next, file) \
+    if (!fread(next, 4, 1, file)) clean_and_return
+
+const char* signature = "\x50\x4b\x03\x04";
 
 struct LocalFileHeader {
     uint32_t signature;
@@ -48,9 +57,7 @@ int read_filename(FILE* file) {
 int main(int argc, char* argv[]) {
     if (argc != 2) error("usage:\n    rarjpeg <file>");
 
-    char* signature = "\x50\x4b\x03\x04";
     char* filename = argv[1];
-
     FILE* file = fopen(filename, "r");
     if (file == NULL) error("cannot open the file");
 
@@ -59,25 +66,24 @@ int main(int argc, char* argv[]) {
         while (1) {
             // check signature
             if (next != signature[0]) break;
-            if (!fread(&next, 1, 1, file)) clean_and_return;
+            read_char(&next, file);
             if (next != signature[1]) continue;
-            if (!fread(&next, 1, 1, file)) clean_and_return;
+            read_char(&next, file);
             if (next != signature[2]) continue;
-            if (!fread(&next, 1, 1, file)) clean_and_return;
+            read_char(&next, file);
             if (next != signature[3]) continue;
 
             // read header struct
-            if (!fread(&header.versionToExtract, 2, 1, file)) clean_and_return;
-            if (!fread(&header.generalPurposeBitFlag, 2, 1, file))
-                clean_and_return;
-            if (!fread(&header.compressionMethod, 2, 1, file)) clean_and_return;
-            if (!fread(&header.modificationTime, 2, 1, file)) clean_and_return;
-            if (!fread(&header.modificationDate, 2, 1, file)) clean_and_return;
-            if (!fread(&header.crc32, 4, 1, file)) clean_and_return;
-            if (!fread(&header.compressedSize, 4, 1, file)) clean_and_return;
-            if (!fread(&header.uncompressedSize, 4, 1, file)) clean_and_return;
-            if (!fread(&header.filenameLength, 2, 1, file)) clean_and_return;
-            if (!fread(&header.extraFieldLength, 2, 1, file)) clean_and_return;
+            read_uint16_t(&header.versionToExtract, file);
+            read_uint16_t(&header.generalPurposeBitFlag, file);
+            read_uint16_t(&header.compressionMethod, file);
+            read_uint16_t(&header.modificationTime, file);
+            read_uint16_t(&header.modificationDate, file);
+            read_uint32_t(&header.crc32, file);
+            read_uint32_t(&header.compressedSize, file);
+            read_uint32_t(&header.uncompressedSize, file);
+            read_uint16_t(&header.filenameLength, file);
+            read_uint16_t(&header.extraFieldLength, file);
 
             // read filename
             if (read_filename(file) < 0) clean_and_return;
