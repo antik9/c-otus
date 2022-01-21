@@ -5,23 +5,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define clean_and_return \
-    {                    \
-        fclose(file);    \
-        return (0);      \
-    }
-
 #define read_char(next, file) \
-    if (!fread(next, 1, 1, file)) clean_and_return
-#define read_uint16_t(next, file) \
-    if (!fread(next, 2, 1, file)) clean_and_return
-#define read_uint32_t(next, file) \
-    if (!fread(next, 4, 1, file)) clean_and_return
+    if (!fread(next, 1, 1, file)) goto exit
 
 const char* signature = "\x50\x4b\x03\x04";
 
-struct LocalFileHeader {
-    uint32_t signature;
+struct __attribute__((__packed__)) LocalFileHeader {
     uint16_t versionToExtract;
     uint16_t generalPurposeBitFlag;
     uint16_t compressionMethod;
@@ -32,8 +21,6 @@ struct LocalFileHeader {
     uint32_t uncompressedSize;
     uint16_t filenameLength;
     uint16_t extraFieldLength;
-    uint8_t* filename;
-    uint8_t* extraField;
 } header;
 
 void error(char* msg) {
@@ -74,21 +61,14 @@ int main(int argc, char* argv[]) {
             if (next != signature[3]) continue;
 
             // read header struct
-            read_uint16_t(&header.versionToExtract, file);
-            read_uint16_t(&header.generalPurposeBitFlag, file);
-            read_uint16_t(&header.compressionMethod, file);
-            read_uint16_t(&header.modificationTime, file);
-            read_uint16_t(&header.modificationDate, file);
-            read_uint32_t(&header.crc32, file);
-            read_uint32_t(&header.compressedSize, file);
-            read_uint32_t(&header.uncompressedSize, file);
-            read_uint16_t(&header.filenameLength, file);
-            read_uint16_t(&header.extraFieldLength, file);
+            if (!fread(&header, 26, 1, file)) goto exit;
 
             // read filename
-            if (read_filename(file) < 0) clean_and_return;
+            if (read_filename(file) < 0) goto exit;
         }
     }
 
-    clean_and_return;
+exit:
+    fclose(file);
+    return (0);
 }
