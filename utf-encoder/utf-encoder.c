@@ -1,9 +1,7 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define read_char(next, file) \
-    if (!fread(next, 1, 1, file)) goto exit
 
 void error(char* msg) {
     puts(msg);
@@ -43,36 +41,53 @@ char* iso8859_5_mapping[96] = {
     "ц", "ч", "ш", "щ", "ъ", "ы", "ь", "э", "ю", "я", "№", "ё", "ђ", "ѓ",
     "є", "ѕ", "і", "ї", "ј", "љ", "њ", "ћ", "ќ", "ў", "џ"};
 
-#define encode(file, encoding) \
-    _encode(file, encoding, 256 - (int)sizeof(encoding) / sizeof(encoding[0]))
+#define encode(source, dest, encoding) \
+    _encode(source, dest, encoding,    \
+            256 - (int)sizeof(encoding) / sizeof(encoding[0]))
 
-void _encode(char* filename, char** encoding, int pivot) {
-    FILE* file = fopen(filename, "r");
-    if (file == NULL) error("cannot open the file");
+void _encode(char* source, char* dest, char** encoding, int pivot) {
+    FILE* in = fopen(source, "r");
+    if (in == NULL) error("cannot open the source file");
+
+    FILE* out = fopen(dest, "w");
+    if (out == NULL) {
+        fclose(in);
+        error("cannot open the destination file");
+    }
+
+    bool ok = false;
 
     unsigned char next;
-    while (fread(&next, 1, 1, file)) {
-        if (next < pivot)
-            printf("%c", (char)next);
-        else {
-            printf("%s", encoding[next - pivot]);
+    while (fread(&next, 1, 1, in)) {
+        if (next < pivot) {
+            if (!fwrite(&next, 1, 1, out)) goto exit;
+        } else {
+            char* decoded = encoding[next - pivot];
+            if (!(fwrite(decoded, strlen(decoded), 1, out))) goto exit;
         }
     }
-    fclose(file);
+    ok = true;
+
+exit:
+    if (!ok) puts("cannot write next symbol to a file");
+    fclose(in);
+    fclose(out);
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) error("Usage:  utf-encoder <encoding> <file>");
+    if (argc != 4)
+        error("Usage:  utf-encoder <encoding> <source> <destination>");
 
     char* encoding = argv[1];
-    char* filename = argv[2];
+    char* source = argv[2];
+    char* dest = argv[3];
 
     if (!strcmp("cp-1251", encoding)) {
-        encode(filename, cp1251_mapping);
+        encode(source, dest, cp1251_mapping);
     } else if (!strcmp("koi8-r", encoding)) {
-        encode(filename, koi8r_mapping);
+        encode(source, dest, koi8r_mapping);
     } else if (!strcmp("iso-8859-5", encoding)) {
-        encode(filename, iso8859_5_mapping);
+        encode(source, dest, iso8859_5_mapping);
     } else {
         error("invalid encoding: expecting one of cp-1251, koi8-r, iso-8859-5");
     }
