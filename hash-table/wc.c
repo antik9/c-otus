@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,19 +13,9 @@ void error(char* msg) {
     exit(1);
 }
 
-bool is_word_symbol(char ch) {
-    if (ch == '-') return true;
-    if (ch >= '0' && ch <= '9') return true;
-    if (ch >= 'A' && ch <= 'Z') return true;
-    if (ch >= 'a' && ch <= 'z') return true;
-    return false;
-}
-
 void put_word_in_hash_table(hash_table ht, char* buf, size_t word_length) {
     if (word_length == 0) return;
-    char* word = malloc((word_length + 1) * sizeof(char));
-    strncpy(word, buf, word_length);
-    word[word_length] = '\0';
+    char* word = strndup(buf, word_length);
 
     entry e = ht_get(ht, word);
     if (e != NULL) {
@@ -44,14 +35,14 @@ int main(int argc, char* argv[]) {
     FILE* file = fopen(filename, "r");
     if (file == NULL) error("cannot open the file");
 
-    char buf[MAX_WORD_SIZE];
-    memset(buf, '\0', MAX_WORD_SIZE);
+    char buf[MAX_WORD_SIZE] = {'\0'};
     hash_table ht = create_hash_table();
 
     char next;
     size_t word_length = 0;
-    while (fread(&next, 1, 1, file)) {
-        if (!is_word_symbol(next)) {
+    while (next = fgetc(file), true) {
+        if (feof(file)) break;
+        if (!isalnum(next)) {
             put_word_in_hash_table(ht, buf, word_length);
             word_length = 0;
             continue;

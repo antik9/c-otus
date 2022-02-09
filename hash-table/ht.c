@@ -5,18 +5,16 @@
 #include <string.h>
 
 #define MAX_OCCUPATION_SHARE 0.5
+#define HASH_TABLE_GROW_MULTIPLICATOR 2
 #define THOMBSTONE -1
 #define INITIAL_SIZE 1024
+#define SHIFT 37
 
 hash_table create_hash_table_(size_t size) {
-    hash_table ht = malloc(sizeof(hash_table));
+    hash_table ht = malloc(sizeof(struct hash_table_));
     ht->occupied = 0;
     ht->size = size;
-    ht->entries = malloc(size * sizeof(entry));
-    for (size_t i = 0; i < size; ++i) {
-        ht->entries[i] = NULL;
-    }
-
+    ht->entries = calloc(sizeof(entry), size);
     return ht;
 }
 
@@ -36,7 +34,8 @@ void destroy_hash_table(hash_table ht) {
 }
 
 void ht_reallocate(hash_table ht) {
-    hash_table temp = create_hash_table_(ht->size * 2);
+    hash_table temp =
+        create_hash_table_(ht->size * HASH_TABLE_GROW_MULTIPLICATOR);
     for (size_t i = 0; i < ht->size; ++i) {
         entry e = ht->entries[i];
         if (e == NULL) continue;
@@ -63,7 +62,7 @@ void ht_print_values(hash_table ht) {
 }
 
 entry new_entry(char* key) {
-    entry e = malloc(sizeof(entry));
+    entry e = malloc(sizeof(struct entry_));
     e->key = key;
     e->value = 0;
     return e;
@@ -80,7 +79,7 @@ int hash(char* key) {
 }
 
 int ht_get_key_position(hash_table ht, char* key) {
-    int position = hash(key) % ht->size;
+    int position = (hash(key) + SHIFT) % ht->size;
     while (ht->entries[position] != NULL &&
            ht->entries[position]->value != THOMBSTONE) {
         entry e = ht->entries[position];
