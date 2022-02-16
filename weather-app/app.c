@@ -12,17 +12,16 @@
     "https://www.metaweather.com/api/location/search/?query="
 #define METAWEATHER_QUERY_WEATHER "https://www.metaweather.com/api/location/"
 
+#define WEATHER_MSG_LENGTH 1024
+
 struct Location {
     int id;
     char* title;
 } Location;
 
 char* prepare_url(char* base, char* params) {
-    char* full_url = calloc(strlen(base) + strlen(params) + 1, sizeof(char));
-    if (full_url == NULL) return NULL;
-
-    memcpy(full_url, base, strlen(base));
-    memcpy(full_url + strlen(base), params, strlen(params));
+    char* full_url = malloc(128 * sizeof(char));
+    snprintf(full_url, 128, "%s%s", base, params);
     return full_url;
 }
 
@@ -111,7 +110,7 @@ char* get_weather_for_location(struct Location* location) {
     struct cJSON* json = NULL;
 
     char* location_id_param = calloc(16, sizeof(char));
-    sprintf(location_id_param, "%d", location->id);
+    snprintf(location_id_param, 16, "%d", location->id);
     location_id_param[strlen(location_id_param)] = '/';
 
     char* full_url = prepare_url(METAWEATHER_QUERY_WEATHER, location_id_param);
@@ -144,7 +143,7 @@ char* get_weather_for_location(struct Location* location) {
         goto fail;
     }
 
-    weather = calloc(1024, sizeof(char));
+    weather = calloc(WEATHER_MSG_LENGTH, sizeof(char));
     sprintf(weather, "\t⛅ Weather in %s ⛅\n", location->title);
 
     cJSON* weather_description =
@@ -153,16 +152,16 @@ char* get_weather_for_location(struct Location* location) {
         fprintf(stderr, "forecast doesn't contain weather description\n");
         goto fail;
     }
-    sprintf(weather + strlen(weather), "Overall description\t%s\n",
-            weather_description->valuestring);
+    snprintf(weather + strlen(weather), WEATHER_MSG_LENGTH - strlen(weather),
+             "Overall description\t%s\n", weather_description->valuestring);
 
     cJSON* wind_speed = cJSON_GetObjectItem(forecast_json, "wind_speed");
     if (wind_speed == NULL) {
         fprintf(stderr, "forecast doesn't contain wind speed\n");
         goto fail;
     }
-    sprintf(weather + strlen(weather), "Wind speed\t\t%.2f mph\n",
-            wind_speed->valuedouble);
+    snprintf(weather + strlen(weather), WEATHER_MSG_LENGTH - strlen(weather),
+             "Wind speed\t\t%.2f mph\n", wind_speed->valuedouble);
 
     cJSON* wind_direction =
         cJSON_GetObjectItem(forecast_json, "wind_direction");
@@ -170,24 +169,24 @@ char* get_weather_for_location(struct Location* location) {
         fprintf(stderr, "forecast doesn't contain wind direction\n");
         goto fail;
     }
-    sprintf(weather + strlen(weather), "Wind direction\t\t%.2f degrees\n",
-            wind_direction->valuedouble);
+    snprintf(weather + strlen(weather), WEATHER_MSG_LENGTH - strlen(weather),
+             "Wind direction\t\t%.2f degrees\n", wind_direction->valuedouble);
 
     cJSON* min_temp = cJSON_GetObjectItem(forecast_json, "min_temp");
     if (min_temp == NULL) {
         fprintf(stderr, "forecast doesn't contain minimal temperature\n");
         goto fail;
     }
-    sprintf(weather + strlen(weather), "Min temperature\t\t%.2f ℃\n",
-            min_temp->valuedouble);
+    snprintf(weather + strlen(weather), WEATHER_MSG_LENGTH - strlen(weather),
+             "Min temperature\t\t%.2f ℃\n", min_temp->valuedouble);
 
     cJSON* max_temp = cJSON_GetObjectItem(forecast_json, "max_temp");
     if (max_temp == NULL) {
         fprintf(stderr, "forecast doesn't contain maximal temperature\n");
         goto fail;
     }
-    sprintf(weather + strlen(weather), "Max temperature\t\t%.2f ℃",
-            max_temp->valuedouble);
+    snprintf(weather + strlen(weather), WEATHER_MSG_LENGTH - strlen(weather),
+             "Max temperature\t\t%.2f ℃", max_temp->valuedouble);
     goto end;
 
 fail:
