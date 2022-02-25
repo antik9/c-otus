@@ -2,17 +2,12 @@
 
 enum Level { DEBUG, INFO, WARNING, ERROR };
 
-struct _LoggerConfig {
+typedef struct {
     enum Level level;
     char* filename;
-};
+} LoggerConfig;
 
-typedef struct _LoggerConfig LoggerConfig;
-
-struct _Logger {
-    enum Level level;
-    FILE* file;
-};
+struct _Logger;
 
 typedef struct _Logger Logger;
 

@@ -5,14 +5,21 @@
 #include <string.h>
 #include <time.h>
 
-#define _DEBUG "DEBUG"
-#define _INFO "INFO"
-#define _WARNING "WARNING"
-#define _ERROR "ERROR"
-
 #define TIME_BUFFER_SIZE 32
 #define BACKTRACE_BUFFER_SIZE 256
 #define BASIC_ERROR_MESSAGE_SIZE 1024
+
+char* _log_levels[4] = {
+    "DEBUG",
+    "INFO",
+    "WARNING",
+    "ERROR",
+};
+
+struct _Logger {
+    enum Level level;
+    FILE* file;
+} _Logger;
 
 Logger* init_logger(LoggerConfig* config) {
     Logger* logger = malloc(sizeof(Logger));
@@ -33,18 +40,7 @@ void destroy_logger(Logger* logger) {
 }
 
 char* level_as_str(enum Level level) {
-    switch (level) {
-        case DEBUG:
-            return _DEBUG;
-        case INFO:
-            return _INFO;
-        case WARNING:
-            return _WARNING;
-        case ERROR:
-            return _ERROR;
-        default:
-            return NULL;
-    }
+    return level >= 4 || level < 0 ? NULL : _log_levels[level];
 }
 
 void _log_message(Logger* logger, enum Level level, char* message,
