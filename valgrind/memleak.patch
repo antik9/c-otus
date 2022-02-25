@@ -1,0 +1,56 @@
+diff --git a/valgrind/clib/deps/http-get/http-get.c b/valgrind/clib/deps/http-get/http-get.c
+index 3f343f6..4ef73c5 100644
+--- a/valgrind/clib/deps/http-get/http-get.c
++++ b/valgrind/clib/deps/http-get/http-get.c
+@@ -92,7 +92,10 @@ int http_get_file_shared(const char *url, const char *file, CURLSH *share) {
+   if (!req) return -1;
+ 
+   FILE *fp = fopen(file, "wb");
+-  if (!fp) return -1;
++  if (!fp) {
++    curl_easy_cleanup(req);
++    return -1;
++  }
+ 
+   if (share) {
+     curl_easy_setopt(req, CURLOPT_SHARE, share);
+diff --git a/valgrind/clib/src/common/clib-package.c b/valgrind/clib/src/common/clib-package.c
+index 268538e..b7b55ab 100644
+--- a/valgrind/clib/src/common/clib-package.c
++++ b/valgrind/clib/src/common/clib-package.c
+@@ -664,6 +664,7 @@ clib_package_new_from_slug_with_package_name(const char *slug, int verbose,
+       json = res->data;
+       _debug("status: %d", res->status);
+       if (!res || !res->ok) {
++        if (res && retries > 0) http_get_free(res);
+         goto download;
+       }
+       log = "fetch";
+@@ -987,7 +988,6 @@ static int fetch_package_file_work(clib_package_t *pkg, const char *dir,
+   }
+ 
+ cleanup:
+-
+   free(url);
+   free(path);
+   return rc;
+@@ -996,10 +996,9 @@ cleanup:
+ #ifdef HAVE_PTHREADS
+ static void *fetch_package_file_thread(void *arg) {
+   fetch_package_file_thread_data_t *data = arg;
+-  int *status = malloc(sizeof(int));
+   int rc =
+       fetch_package_file_work(data->pkg, data->dir, data->file, data->verbose);
+-  *status = rc;
++  int status = rc;
+   (void)data->pkg->refs--;
+   pthread_exit((void *)status);
+   return (void *)rc;
+@@ -1598,6 +1597,7 @@ cleanup:
+   }
+   fetchs = NULL;
+ #endif
++  clib_package_cleanup();
+   return rc;
+ }
+ 
