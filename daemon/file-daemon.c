@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -15,14 +17,15 @@
 #define DAEMON_ERROR "daemon error\n"
 #define FILE_NOT_EXIST "file does not exist\n"
 #define DAEMON_ERROR "daemon error\n"
-#define USAGE                    \
-    "usage:\n"                   \
-    "    ./file-daemon <file>\n" \
-    "    ./file-daemon -d <file>\n"
+#define USAGE             \
+    "usage:\n"            \
+    "    ./file-daemon\n" \
+    "    ./file-daemon -c <config-file>\n"
 
 #define BUF_SIZE 1024
 #define LISTEN_QUEUE 1
 #define SOCKET_PATH "file-daemon.sock"
+#define DEFAULT_CONFIG_FILE "file-daemon.conf"
 #define WATCH_EVENTS IN_MODIFY | IN_DELETE | IN_DELETE_SELF
 
 #define EVENT_SIZE (sizeof(struct inotify_event))
@@ -34,14 +37,22 @@
         exit(EXIT_FAILURE);   \
     } while (0)
 
+struct Config {
+    bool daemon;
+    char* filename;
+} config;
+
 enum ChangeEvent {
     NO_CHANGES,
-    FILE_DELETED,
+    FILE_NOT_FOUND,
     FILE_MODIFIED,
     UNKNOWN_ERROR,
 };
 
-void sig_handler() { unlink(SOCKET_PATH); }
+void sig_handler() {
+    unlink(SOCKET_PATH);
+    free(config.filename);
+}
 
 int listen_socket() {
     int listenfd;
@@ -78,9 +89,9 @@ enum ChangeEvent last_notification(int notifyfd, char* buffer) {
             if (event->mask & IN_MODIFY)
                 event_type = FILE_MODIFIED;
             else if (event->mask & IN_DELETE)
-                event_type = FILE_DELETED;
+                event_type = FILE_NOT_FOUND;
             else if (event->mask & IN_DELETE_SELF)
-                event_type = FILE_DELETED;
+                event_type = FILE_NOT_FOUND;
         }
 
         i += EVENT_SIZE + event->len;
@@ -96,20 +107,18 @@ int notify_changes() {
 }
 
 void filewatch(char* filename, int listenfd) {
-    int notifyfd = notify_changes();
-    int wd = inotify_add_watch(notifyfd, filename, WATCH_EVENTS);
-
+    int notifyfd = 0, wd = 0;
     char buf[BUF_SIZE];
     char notification_buffer[EVENT_BUF_LEN];
 
-    enum ChangeEvent state = NO_CHANGES;
+    enum ChangeEvent state = FILE_NOT_FOUND;
     while (true) {
         struct sockaddr_un cliaddr;
         socklen_t len = sizeof(cliaddr);
         int connfd = accept(listenfd, (struct sockaddr*)&cliaddr, &len);
         if (connfd == -1) handle_error("cannot accept a new connection");
 
-        if (state == FILE_DELETED) {
+        if (state == FILE_NOT_FOUND) {
             inotify_rm_watch(notifyfd, wd);
             // try to watch a newly created file with the same name
             notifyfd = notify_changes();
@@ -132,7 +141,7 @@ void filewatch(char* filename, int listenfd) {
         struct stat sb;
         if (stat(filename, &sb) < 0) {
             if (errno == ENOENT) {
-                state = FILE_DELETED;
+                state = FILE_NOT_FOUND;
                 snprintf(buf, strlen(FILE_NOT_EXIST) + 1, FILE_NOT_EXIST);
                 goto buffered_response;
             }
@@ -151,13 +160,33 @@ void filewatch(char* filename, int listenfd) {
     }
 }
 
-int main(int argc, char* argv[]) {
-    if (argc > 3 || argc < 2) handle_error(USAGE);
-    if (argc == 3 && strcmp(argv[1], "-d")) handle_error(USAGE);
+void read_config(char* path) {
+    FILE* file = fopen(path, "r");
+    if (file == NULL) handle_error("cannot open provided config file");
 
-    bool daemon_mode = argc == 3;
-    char* filename = daemon_mode ? argv[2] : argv[1];
-    if (daemon_mode) {
+    char* line = NULL;
+    size_t len = 0;
+    while (getline(&line, &len, file) > 0) {
+        char* separator = strchr(line, '=');
+        if (!separator) continue;
+        if (separator - line == 4 && !strncmp("file", line, 4)) {
+            config.filename = strdup(separator + 1);
+            config.filename[strlen(config.filename) - 1] = '\0';
+        }
+        if (separator - line == 6 && !strncmp("daemon", line, 6))
+            config.daemon = !strncmp("true", separator + 1, 4);
+    }
+
+    free(line);
+    fclose(file);
+}
+
+int main(int argc, char* argv[]) {
+    if (argc > 3 || argc == 2) handle_error(USAGE);
+    if (argc == 3 && strcmp(argv[1], "-c")) handle_error(USAGE);
+
+    read_config(argc == 3 ? argv[2] : DEFAULT_CONFIG_FILE);
+    if (config.daemon) {
         pid_t child;
         if ((child = fork()) > 0) {
             printf("pid: %d\n", child);
@@ -168,6 +197,6 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    filewatch(filename, listen_socket());
+    filewatch(config.filename, listen_socket());
     return 0;
 }
