@@ -11,11 +11,11 @@
         exit(EXIT_FAILURE);   \
     } while (0)
 
+#define MESSAGE_SIZE 64
 typedef struct _Message {
     long mtype;
-    char mtext[64];
+    char mtext[MESSAGE_SIZE];
 } Message;
-#define MESSAGE_SIZE sizeof(Message)
 
 typedef struct _LogEntry {
     char* url;

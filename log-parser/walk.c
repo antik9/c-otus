@@ -9,12 +9,30 @@
 
 #define ACCESS_LOG "access.log"
 
-int get_log_stats_from_dir(char* log_dir, LogFileStats** stats,
-                           int stats_size) {
+int count_files_in_dir(char* log_dir) {
     int number_of_files = 0;
 
     DIR* dir;
     struct dirent* ent;
+    if ((dir = opendir(log_dir)) != NULL) {
+        while ((ent = readdir(dir)) != NULL)
+            if (!strncmp(ent->d_name, ACCESS_LOG, strlen(ACCESS_LOG)))
+                ++number_of_files;
+        closedir(dir);
+    } else
+        return -1;
+
+    return number_of_files;
+}
+
+int get_log_stats_from_dir(char* log_dir, LogFileStats** stats,
+                           int stats_size) {
+    if (count_files_in_dir(log_dir) <= 0) return -1;
+
+    int number_of_files = 0;
+    DIR* dir;
+    struct dirent* ent;
+
     if ((dir = opendir(log_dir)) != NULL) {
         while ((ent = readdir(dir)) != NULL) {
             if (!strncmp(ent->d_name, ACCESS_LOG, strlen(ACCESS_LOG))) {
@@ -30,8 +48,7 @@ int get_log_stats_from_dir(char* log_dir, LogFileStats** stats,
         }
         closedir(dir);
     } else
-        handle_error("cannot open log directory");
+        return -1;
 
     return number_of_files;
 }
-

@@ -27,7 +27,8 @@ void parse_logs_multithread(char* log_dir, int num_threads) {
     pthread_t* threads = malloc(sizeof(pthread_t) * num_threads);
 
     int number_of_files = get_log_stats_from_dir(log_dir, stats, 1024);
-    if (number_of_files == 0) goto clean;
+    if (number_of_files == -1) goto err_get_files;
+    if (number_of_files == 0) goto no_files_in_dir;
 
     int msgid = msgget(QUEUE_MESSAGE_KEY, 0666 | IPC_CREAT);
 
@@ -54,8 +55,15 @@ void parse_logs_multithread(char* log_dir, int num_threads) {
     for (int i = 0; i < num_threads; ++i) pthread_join(threads[i], NULL);
 
     msgctl(msgid, IPC_RMID, NULL);
-
     print_log_stats(stats, number_of_files);
+    goto clean;
+
+err_get_files:
+    fprintf(stderr, "cannot get files from directory\n");
+    goto clean;
+
+no_files_in_dir:
+    fprintf(stderr, "no log files in provided directory\n");
 
 clean:
     for (int i = 0; i < number_of_files; ++i) {
