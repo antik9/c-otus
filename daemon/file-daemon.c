@@ -37,7 +37,7 @@
         exit(EXIT_FAILURE);   \
     } while (0)
 
-struct Config {
+struct {
     bool daemon;
     char* filename;
 } config;
@@ -49,19 +49,17 @@ enum ChangeEvent {
     UNKNOWN_ERROR,
 };
 
-void sig_handler() {
-    unlink(SOCKET_PATH);
-    free(config.filename);
-}
+void free_resources() { free(config.filename); }
+
+void sig_handler() { unlink(SOCKET_PATH); }
 
 int listen_socket() {
     int listenfd;
-    struct sockaddr_un servaddr;
+    struct sockaddr_un servaddr = {0};
 
     listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (listenfd == -1) handle_error("cannot start socket");
 
-    memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sun_family = AF_UNIX;
     strncpy(servaddr.sun_path, SOCKET_PATH, sizeof(servaddr.sun_path) - 1);
 
@@ -196,6 +194,7 @@ int main(int argc, char* argv[]) {
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+    atexit(free_resources);
 
     filewatch(config.filename, listen_socket());
     return 0;
