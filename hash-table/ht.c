@@ -14,7 +14,7 @@ hash_table create_hash_table_(size_t size) {
     hash_table ht = malloc(sizeof(struct hash_table_));
     ht->occupied = 0;
     ht->size = size;
-    ht->entries = calloc(sizeof(entry), size);
+    ht->entries = calloc(size, sizeof(entry));
     return ht;
 }
 
@@ -57,7 +57,7 @@ void ht_print_values(hash_table ht) {
     if (ht == NULL) return;
     for (size_t i = 0; i < ht->size; ++i) {
         if (ht->entries[i] != NULL)
-            printf("%s: %d\n", ht->entries[i]->key, ht->entries[i]->value);
+            printf("%s: %lld\n", ht->entries[i]->key, ht->entries[i]->value);
     }
 }
 
@@ -114,4 +114,11 @@ void ht_delete(hash_table ht, char* key) {
     if (e != NULL) {
         e->value = THOMBSTONE;
     }
+}
+
+void ht_for_each(hash_table ht, void(callback)(void* state, entry e),
+                 void* state) {
+    if (ht == NULL) return;
+    for (size_t i = 0; i < ht->size; ++i)
+        if (ht->entries[i] != NULL) callback(state, ht->entries[i]);
 }
