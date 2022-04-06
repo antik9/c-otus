@@ -24,19 +24,23 @@
 #define PORT 23
 
 int hostname_to_ip(char* hostname, char* ip) {
-    struct hostent* he;
-    struct in_addr** addr_list;
-    int i;
+    struct addrinfo hints, *result, *rp;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
 
-    if ((he = gethostbyname(hostname)) == NULL) return -1;
+    if (getaddrinfo(hostname, "80", &hints, &result)) return -1;
 
-    addr_list = (struct in_addr**)he->h_addr_list;
+    struct sockaddr_in* addr;
+    addr = (struct sockaddr_in*)result->ai_addr;
 
-    for (i = 0; addr_list[i] != NULL; i++) {
-        strcpy(ip, inet_ntoa(*addr_list[i]));
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        strcpy(ip, inet_ntoa(addr->sin_addr));
+        freeaddrinfo(result);
         return 0;
     }
 
+    freeaddrinfo(result);
     return -1;
 }
 
@@ -47,7 +51,9 @@ void read_from_socket(int sock, char** buf, int* buf_size) {
         *buf = realloc(*buf, *buf_size * sizeof(char));
         memset(*buf + strlen(*buf), '\0',
                (*buf_size - strlen(*buf)) * sizeof(char));
-        if (strncmp("\n.", *buf + strlen(*buf) - 2, 2) == 0) break;
+        if ('\n' == *(*buf + strlen(*buf) - 2) &&
+            '.' == *(*buf + strlen(*buf) - 1))
+            break;
     }
 }
 
@@ -61,7 +67,7 @@ void figlet_through_net(char* font, char* text) {
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);
 
-    char ip[64];
+    char ip[INET_ADDRSTRLEN];
     if (hostname_to_ip(SOURCE_HOST, ip) < 0) {
         fprintf(stderr, "cannot get ip for domain");
         goto clean;
@@ -113,10 +119,10 @@ int main(int argc, char* argv[]) {
     while ((opt = getopt(argc, argv, "f:t:")) != -1) {
         switch (opt) {
             case 'f':
-                font = strdup(optarg);
+                font = optarg;
                 break;
             case 't':
-                text = strdup(optarg);
+                text = optarg;
                 break;
             default:
                 handle_error(USAGE);
@@ -126,7 +132,5 @@ int main(int argc, char* argv[]) {
     if (font == NULL || text == NULL) handle_error(USAGE);
     figlet_through_net(font, text);
 
-    free(font);
-    free(text);
     return 0;
 }
