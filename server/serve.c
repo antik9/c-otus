@@ -77,7 +77,7 @@ void handle_request(int fd, char* directory) {
 
     char* path = strchr(buffer, '/');
     int filename_length = strchr(path, ' ') - path + strlen(directory) + 1;
-    filename = calloc(filename_length + 1, sizeof(char));
+    filename = calloc(filename_length + 1, 1);
     sprintf(filename, "%s/", directory);
     snprintf(filename + strlen(filename), filename_length - strlen(filename),
              "%s", path + 1);
@@ -94,8 +94,8 @@ void handle_request(int fd, char* directory) {
     int file = open(filename, O_RDONLY);
     if (file < 0) HTTP_ERROR(INTERNAL_SERVER_ERROR);
 
-    char response_headers_ok[1024] = {0};
-    sprintf(response_headers_ok, OK, sb.st_size);
+    char response_headers_ok[1025] = {0};
+    snprintf(response_headers_ok, 1024, OK, sb.st_size);
     if (send(fd, response_headers_ok, strlen(response_headers_ok), 0) < 0) {
         perror("write");
         goto clean_resources;
@@ -171,27 +171,30 @@ void* serve(void* _serve_args) {
 
         for (int i = 0; i < nfds; i++) {
             if (events[i].data.fd == listenfd) {
-                int connfd = accept(listenfd, NULL, NULL);
-                if (connfd < 0) {
-                    perror("accept");
-                    continue;
-                }
+                while (true) {
+                    int connfd = accept(listenfd, NULL, NULL);
+                    if (connfd < 0) {
+                        if (errno == EAGAIN) break;
+                        perror("accept");
+                        break;
+                    }
 
-                if (events_count == MAX_EPOLL_EVENTS - 1) {
-                    printf("Event array is full\n");
-                    close(connfd);
-                    continue;
-                }
+                    if (events_count == MAX_EPOLL_EVENTS - 1) {
+                        printf("Event array is full\n");
+                        close(connfd);
+                        break;
+                    }
 
-                connev.data.fd = connfd;
-                connev.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP;
-                if (epoll_ctl(efd, EPOLL_CTL_ADD, connfd, &connev) < 0) {
-                    perror("epoll_ctl");
-                    close(connfd);
-                    continue;
-                }
+                    connev.data.fd = connfd;
+                    connev.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP;
+                    if (epoll_ctl(efd, EPOLL_CTL_ADD, connfd, &connev) < 0) {
+                        perror("epoll_ctl");
+                        close(connfd);
+                        break;
+                    }
 
-                events_count++;
+                    events_count++;
+                }
             } else {
                 int fd = events[i].data.fd;
                 if (events[i].events & EPOLLIN) {
